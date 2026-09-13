@@ -1,0 +1,1782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>City Public School, Najibabad - Secure Examination Portal</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PDF.js and Mammoth CDNs for Document Parsing with Image/Figure Support -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; user-select: none; }
+        input, select, textarea { user-select: text; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        /* Ensure embedded figures, charts, and circuits scale nicely */
+        .question-body img { max-width: 100%; height: auto; display: block; margin: 10px auto; border-radius: 8px; border: 1px solid #e2e8f0; }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 flex flex-col" oncontextmenu="return false;">
+
+    <!-- Anti-Cheat Security Warning Modal -->
+    <div id="security-warning-modal" class="fixed inset-0 bg-slate-950/80 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-3xl max-w-md w-full p-8 text-center shadow-2xl border-4 border-red-600">
+            <div class="text-red-600 text-6xl mb-3">⚠️</div>
+            <h3 class="text-2xl font-black text-red-700 tracking-wide mb-2">SECURITY WARNING!</h3>
+            <p id="warning-text" class="text-slate-700 text-sm mb-6 font-medium leading-relaxed">Tab switching or leaving the examination window is strictly prohibited.</p>
+            <button onclick="dismissWarning()" class="w-full bg-red-600 hover:bg-red-700 text-white py-3.5 rounded-2xl font-bold transition shadow-lg text-sm">I Understand & Return</button>
+        </div>
+    </div>
+
+    <!-- Dynamic Modal Container -->
+    <div id="app-modal" class="fixed inset-0 bg-slate-950/70 z-50 hidden flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-3xl max-w-2xl w-full p-8 shadow-2xl border border-slate-200 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <button onclick="closeModal()" class="absolute top-6 right-6 text-slate-400 hover:text-slate-700 font-black text-xl">✕</button>
+            <div id="modal-content"></div>
+        </div>
+    </div>
+
+    <!-- Main App Wrapper -->
+    <div id="app" class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header id="app-header" class="hidden bg-gradient-to-r from-blue-950 via-blue-900 to-indigo-950 text-white shadow-2xl p-4 md:px-8 flex justify-between items-center sticky top-0 z-40 border-b border-blue-800/50">
+            <div class="flex items-center space-x-4">
+                <div class="bg-white text-blue-950 font-black px-3 py-2 rounded-xl text-lg shadow-inner">CPS</div>
+                <div>
+                    <h1 class="font-extrabold text-base md:text-lg tracking-wide">CITY PUBLIC SCHOOL, NAJIBABAD</h1>
+                    <p class="text-xs text-blue-300 font-medium">Secure CBT Examination Engine v6.1</p>
+                </div>
+            </div>
+            <div id="header-user-info" class="text-sm font-medium flex items-center gap-4"></div>
+        </header>
+
+        <!-- Main Body -->
+        <main class="flex-grow flex flex-col w-full">
+            <div id="view-container" class="flex-grow flex flex-col"></div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="bg-slate-900 text-slate-400 text-xs py-5 text-center border-t border-slate-800 font-medium">
+            &copy; 2026. All Rights Reserved. Designed by Krishna Kr. 
+        </footer>
+    </div>
+
+    <!-- Application Script -->
+    <script>
+        let state = {
+            currentUser: null,
+            activeTab: 'users',
+            warningCount: 0,
+            activeExamInterval: null,
+            currentAttemptExam: null,
+            currentQuestionIndex: 0,
+            studentAnswers: {},
+            questionStatus: {}, // 'answered', 'unanswered', 'marked'
+            showLoginCountdown: false,
+            users: JSON.parse(localStorage.getItem('cps_users')) || [
+                { id: 1, role: 'Admin', class: 'N/A', subject: 'All', name: 'ADMINISTRATOR', username: 'Admin', password: 'Admin@2511', status: 'approved' },
+                { id: 2, role: 'Teacher', class: 'N/A', subject: 'All', name: 'KRISHNA KUMAR KASHERWAL', username: 'kasherwal22', password: '251145', status: 'approved' },
+                { id: 3, role: 'Student', class: 'Class 9th - Section A', subject: 'All', name: 'RAHUL KUMAR', username: 'rahul9', password: '251145', roll: '901', status: 'approved' },
+                { id: 4, role: 'Student', class: 'Class 10th - Section A', subject: 'All', name: 'PRIYA SHARMA', username: 'priya10', password: '251145', roll: '1001', status: 'approved' }
+            ],
+            exams: JSON.parse(localStorage.getItem('cps_exams')) || [
+                { 
+                    id: 'physics_class9', subjectId: 'physics', name: 'Physics - Class 9th', subject: 'Physics', class: 'Class 9th - Section A', status: 'LIVE', startTime: '', endTime: '', durationMinutes: 45,
+                    questions: [
+                        { 
+                            id: 1, type: 'mcq', 
+                            caseStudy: 'Case Study 1: Read the following passage about electromagnetic induction and answer questions 1 to 5. When a magnet is moved towards a coil of wire, an electric current is induced in the coil. This phenomenon, discovered by Michael Faraday, forms the fundamental principle behind electric generators and transformers.',
+                            q: 'Q1. Who discovered the phenomenon of electromagnetic induction?', 
+                            options: ['Isaac Newton', 'Michael Faraday', 'Albert Einstein', 'James Clerk Maxwell'], correct: 1 
+                        },
+                        { 
+                            id: 2, type: 'mcq', 
+                            caseStudy: 'Case Study 1: Read the following passage about electromagnetic induction and answer questions 1 to 5. When a magnet is moved towards a coil of wire, an electric current is induced in the coil. This phenomenon, discovered by Michael Faraday, forms the fundamental principle behind electric generators and transformers.',
+                            q: 'Q2. What device converts mechanical energy into electrical energy based on this principle?', 
+                            options: ['Electric Motor', 'Electric Generator', 'Resistor', 'Capacitor'], correct: 1 
+                        },
+                        { 
+                            id: 3, type: 'mcq', 
+                            caseStudy: 'Case Study 1: Read the following passage about electromagnetic induction and answer questions 1 to 5. When a magnet is moved towards a coil of wire, an electric current is induced in the coil. This phenomenon, discovered by Michael Faraday, forms the fundamental principle behind electric generators and transformers.',
+                            q: 'Q3. What happens to the induced current when the magnet is held stationary inside the coil?', 
+                            options: ['Current increases', 'Current decreases', 'Current becomes zero', 'Current remains constant'], correct: 2 
+                        },
+                        { 
+                            id: 4, type: 'mcq', 
+                            caseStudy: 'Case Study 1: Read the following passage about electromagnetic induction and answer questions 1 to 5. When a magnet is moved towards a coil of wire, an electric current is induced in the coil. This phenomenon, discovered by Michael Faraday, forms the fundamental principle behind electric generators and transformers.',
+                            q: 'Q4. Which of the following factors affects the magnitude of the induced current?', 
+                            options: ['Speed of magnet movement', 'Number of turns in coil', 'Strength of magnetic field', 'All of the above'], correct: 3 
+                        },
+                        { 
+                            id: 5, type: 'mcq', 
+                            caseStudy: 'Case Study 1: Read the following passage about electromagnetic induction and answer questions 1 to 5. When a magnet is moved towards a coil of wire, an electric current is induced in the coil. This phenomenon, discovered by Michael Faraday, forms the fundamental principle behind electric generators and transformers.',
+                            q: 'Q5. Transformers operate on which type of current supply?', 
+                            options: ['Direct Current (DC) only', 'Alternating Current (AC)', 'Both AC and DC equally', 'Static current'], correct: 1 
+                        },
+                        { 
+                            id: 6, type: 'descriptive', 
+                            q: 'Q6. Explain Newton\'s Second Law of Motion with mathematical formulation.', correctText: '' 
+                        }
+                    ]
+                },
+                { 
+                    id: 'physics_class10', subjectId: 'physics', name: 'Physics - Class 10th', subject: 'Physics', class: 'Class 10th - Section A', status: 'LIVE', startTime: '', endTime: '', durationMinutes: 45,
+                    questions: [
+                        { id: 1, type: 'mcq', q: 'What is the SI unit of electric resistance?', options: ['Ampere', 'Volt', 'Ohm', 'Watt'], correct: 2 }
+                    ]
+                },
+                { 
+                    id: 'chemistry_all', subjectId: 'chemistry', name: 'Chemistry', subject: 'Chemistry', class: 'All Sections', status: 'OFFLINE', startTime: '', endTime: '', durationMinutes: 45,
+                    questions: [
+                        { id: 1, type: 'mcq', q: 'What is the chemical symbol for Gold?', options: ['Ag', 'Au', 'Pb', 'Fe'], correct: 1 }
+                    ]
+                },
+                { 
+                    id: 'mathematics_all', subjectId: 'mathematics', name: 'Mathematics', subject: 'Mathematics', class: 'All Sections', status: 'LIVE', startTime: '', endTime: '', durationMinutes: 60,
+                    questions: [
+                        { id: 1, type: 'mcq', q: 'What is the value of Pi (π) up to 2 decimal places?', options: ['3.12', '3.14', '3.16', '3.18'], correct: 1 }
+                    ]
+                },
+                { 
+                    id: 'biology_all', subjectId: 'biology', name: 'Biology', subject: 'Biology', class: 'All Sections', status: 'OFFLINE', startTime: '', endTime: '', durationMinutes: 45,
+                    questions: [
+                        { id: 1, type: 'mcq', q: 'Which cell organelle is known as the powerhouse of the cell?', options: ['Nucleus', 'Ribosome', 'Mitochondria', 'Golgi Apparatus'], correct: 2 }
+                    ]
+                }
+            ],
+            submissions: JSON.parse(localStorage.getItem('cps_submissions')) || []
+        };
+
+        function saveState() {
+            localStorage.setItem('cps_users', JSON.stringify(state.users));
+            localStorage.setItem('cps_exams', JSON.stringify(state.exams));
+            localStorage.setItem('cps_submissions', JSON.stringify(state.submissions));
+        }
+
+        // Live Clock Timer for Login Screen
+        setInterval(() => {
+            const clockEl = document.getElementById('live-clock-badge');
+            if (clockEl) {
+                const now = new Date();
+                const d = String(now.getDate()).padStart(2, '0');
+                const m = String(now.getMonth() + 1).padStart(2, '0');
+                const y = now.getFullYear();
+                const timeStr = now.toTimeString().split(' ')[0];
+                clockEl.innerText = `${d}/${m}/${y} | ${timeStr}`;
+            }
+        }, 1000);
+
+        // Multi-device / multi-tab session monitor for students
+        setInterval(() => {
+            if (state.currentUser && state.currentUser.role === 'Student') {
+                const sessionKey = 'cps_active_session_' + state.currentUser.username;
+                const currentStoredSession = localStorage.getItem(sessionKey);
+                
+                const freshUser = state.users.find(u => u.username === state.currentUser.username);
+                if (freshUser && freshUser.status === 'locked') {
+                    alert('Your account has been locked due to multi-device or multi-tab login attempt.');
+                    logout();
+                    return;
+                }
+
+                if (currentStoredSession && currentStoredSession !== state.currentUser.sessionToken) {
+                    if (freshUser) freshUser.status = 'locked';
+                    saveState();
+                    alert('Security Alert: Your account has been accessed from another device or tab and is now locked immediately.');
+                    logout();
+                }
+            }
+        }, 1000);
+
+        // Listen to storage events across tabs
+        window.addEventListener('storage', (event) => {
+            if (state.currentUser && state.currentUser.role === 'Student') {
+                const sessionKey = 'cps_active_session_' + state.currentUser.username;
+                if (event.key === sessionKey && event.newValue !== state.currentUser.sessionToken) {
+                    alert('Security Alert: Account accessed from another tab/device. Locking account immediately.');
+                    logout();
+                }
+            }
+        });
+
+        function render() {
+            const container = document.getElementById('view-container');
+            const header = document.getElementById('app-header');
+            const userInfo = document.getElementById('header-user-info');
+
+            if (!state.currentUser) {
+                header.classList.add('hidden');
+                container.innerHTML = renderLoginScreen();
+                toggleStudentFields();
+                return;
+            }
+
+            header.classList.remove('hidden');
+
+            // Handle Student 30-Second Countdown Screen after login[cite: 1]
+            if (state.currentUser.role === 'Student' && state.showLoginCountdown) {
+                userInfo.innerHTML = `
+                    <div class="hidden md:block text-right">
+                        <div class="font-bold text-white">${state.currentUser.name}</div>
+                        <div class="text-xs text-blue-300 capitalize font-medium">${state.currentUser.role} | ${state.currentUser.class || 'System Control'}</div>
+                    </div>
+                    <button onclick="logout()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-md">Logout</button>
+                `;
+                container.innerHTML = `
+                    <div class="flex-grow flex items-center justify-center p-4">
+                        <div class="bg-white rounded-3xl max-w-lg w-full p-8 text-center shadow-2xl border border-slate-200 space-y-6 my-auto">
+                            <div class="text-blue-950 text-5xl">⏳</div>
+                            <h3 class="text-2xl font-black text-blue-950">Security Initialization & Verification</h3>
+                            <p class="text-slate-600 text-sm font-medium">Exam session successfully authorized. Please wait for the secure examination environment countdown.</p>
+                            <div id="login-countdown-timer" class="text-4xl font-black text-blue-600 py-4 bg-blue-50 rounded-2xl border border-blue-100">30s</div>
+                            <button onclick="skipLoginCountdown()" class="w-full bg-blue-950 hover:bg-blue-900 text-white py-3.5 rounded-2xl font-bold transition text-sm shadow">Proceed to Portal Now</button>
+                        </div>
+                    </div>
+                `;
+                if (!window.loginCountdownInterval) {
+                    let secondsLeft = 30;
+                    window.loginCountdownInterval = setInterval(() => {
+                        secondsLeft--;
+                        const timerEl = document.getElementById('login-countdown-timer');
+                        if (timerEl) timerEl.innerText = `${secondsLeft}s`;
+                        if (secondsLeft <= 0) {
+                            clearInterval(window.loginCountdownInterval);
+                            window.loginCountdownInterval = null;
+                            state.showLoginCountdown = false;
+                            render();
+                        }
+                    }, 1000);
+                }
+                return;
+            }
+
+            let userSubjectLabel = state.currentUser.role === 'Teacher' ? ` | Subject: ${state.currentUser.subject.toUpperCase()}` : '';
+            userInfo.innerHTML = `
+                <div class="hidden md:block text-right">
+                    <div class="font-bold text-white">${state.currentUser.name}</div>
+                    <div class="text-xs text-blue-300 capitalize font-medium">${state.currentUser.role} | ${state.currentUser.class || 'System Control'}${userSubjectLabel}</div>
+                </div>
+                <button onclick="logout()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-md">Logout</button>
+            `;
+
+            if (state.currentUser.role === 'Admin' || state.currentUser.role === 'Teacher') {
+                container.innerHTML = `<div class="p-4 md:p-8 max-w-7xl mx-auto w-full">${renderManagementDashboard()}</div>`;
+            } else {
+                container.innerHTML = `<div class="p-4 md:p-8 max-w-4xl mx-auto w-full">${renderStudentPortal()}</div>`;
+            }
+        }
+
+        function skipLoginCountdown() {
+            if (window.loginCountdownInterval) {
+                clearInterval(window.loginCountdownInterval);
+                window.loginCountdownInterval = null;
+            }
+            state.showLoginCountdown = false;
+            render();
+        }
+
+        function togglePasswordVisibility(fieldId, btnEl) {
+            const inputField = document.getElementById(fieldId);
+            if (inputField) {
+                if (inputField.type === 'password') {
+                    inputField.type = 'text';
+                    btnEl.innerText = '🙈';
+                } else {
+                    inputField.type = 'password';
+                    btnEl.innerText = '👁️';
+                }
+            }
+        }
+
+        // ==================== LOGIN SCREEN ====================
+        function renderLoginScreen() {
+            const now = new Date();
+            const dateStr = `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()} | ${now.toTimeString().split(' ')[0]}`;
+
+            return `
+                <div class="min-h-screen bg-cover bg-center flex flex-col justify-between relative" style="background-image: url('https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=1920&q=80')">
+                    <div class="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"></div>
+                    
+                    <header class="relative z-10 p-6 flex flex-col md:flex-row justify-between items-center text-white border-b border-white/10 gap-4">
+                        <h1 class="text-xl md:text-2xl font-black tracking-wider text-center md:text-left drop-shadow-md">CITY PUBLIC SCHOOL, NAJIBABAD</h1>
+                        <div id="live-clock-badge" class="bg-slate-900/80 border border-white/20 px-4 py-2 rounded-2xl text-xs font-bold tracking-widest shadow-inner">
+                            ${dateStr}
+                        </div>
+                    </header>
+
+                    <main class="relative z-10 flex-grow flex items-center justify-center p-4 my-6">
+                        <div class="bg-white rounded-3xl max-w-xl w-full p-8 md:p-10 shadow-2xl border border-slate-100">
+                            <div class="text-center mb-8">
+                                <h2 class="text-2xl md:text-3xl font-extrabold text-blue-950">Online Examination Portal Login</h2>
+                                <p class="text-xs md:text-sm text-slate-500 mt-2 font-medium">Select your role and authenticate using your registered details.</p>
+                            </div>
+
+                            <div class="space-y-5">
+                                <div>
+                                    <div class="flex justify-between items-center mb-2">
+                                        <label class="text-xs font-extrabold text-slate-700 uppercase tracking-wider">I am a:</label>
+                                        <a href="#" onclick="openRegisterModal()" class="text-xs font-bold text-blue-600 hover:underline">New User? Register Here</a>
+                                    </div>
+                                    <select id="login-role" onchange="toggleStudentFields()" class="w-full border border-slate-300 rounded-2xl p-4 focus:ring-2 focus:ring-blue-600 focus:outline-none text-sm font-semibold bg-slate-50 cursor-pointer">
+                                        <option value="Student">Student</option>
+                                        <option value="Teacher">Teacher</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-2">User ID / Registered Email</label>
+                                    <input type="text" id="login-username" class="w-full border border-slate-300 rounded-2xl p-4 focus:ring-2 focus:ring-blue-600 focus:outline-none text-sm font-medium bg-slate-50" placeholder="e.g. abc@gmail.com, abc9">
+                                </div>
+
+                                <div>
+                                    <div class="flex justify-between items-center mb-2">
+                                        <label class="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Password</label>
+                                        <a href="#" onclick="alert('Please contact school IT administrator for password reset.')" class="text-xs font-bold text-blue-600 hover:underline">Forgot Password?</a>
+                                    </div>
+                                    <div class="relative">
+                                        <input type="password" id="login-password" class="w-full border border-slate-300 rounded-2xl p-4 pr-12 focus:ring-2 focus:ring-blue-600 focus:outline-none text-sm font-medium bg-slate-50" placeholder="Enter account password">
+                                        <button type="button" onclick="togglePasswordVisibility('login-password', this)" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-lg focus:outline-none">👁️</button>
+                                    </div>
+                                </div>
+
+                                <div id="student-extra-fields" class="space-y-5">
+                                    <div>
+                                        <label class="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-2">Select Class & Section</label>
+                                        <select id="login-class" class="w-full border border-slate-300 rounded-2xl p-4 focus:ring-2 focus:ring-blue-600 focus:outline-none text-sm font-semibold bg-slate-50 cursor-pointer">
+                                            <option value="Class 9th - Section A">Class 9th - Section A</option>
+                                            <option value="Class 9th - Section B">Class 9th - Section B</option>
+                                            <option value="Class 10th - Section A">Class 10th - Section A</option>
+                                            <option value="Class 10th - Section B">Class 10th - Section B</option>
+                                            <option value="Class 11th - Science A">Class 11th - Section A</option>
+                                            <option value="Class 11th - Science B">Class 11th - Section B</option>
+                                            <option value="Class 12th - Science A">Class 12th - Section A</option>
+                                            <option value="Class 12th - Science B">Class 12th - Section B</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-2">Enter Roll Number (1 to 50)</label>
+                                        <input type="number" id="login-roll" min="1" max="50" class="w-full border border-slate-300 rounded-2xl p-4 focus:ring-2 focus:ring-blue-600 focus:outline-none text-sm font-medium bg-slate-50" placeholder="e.g. 12">
+                                    </div>
+                                </div>
+
+                                <button onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-2xl transition shadow-xl text-sm tracking-wide mt-2">Login & Proceed</button>
+                            </div>
+                        </div>
+                    </main>
+
+                    <footer class="relative z-10 text-slate-400 text-xs py-4 text-center border-t border-white/10 font-medium">
+                        &copy; Secure Examination Engine.
+                    </footer>
+                </div>
+            `;
+        }
+
+        function toggleStudentFields() {
+            const role = document.getElementById('login-role')?.value;
+            const extraFields = document.getElementById('student-extra-fields');
+            if (extraFields) {
+                if (role === 'Student') {
+                    extraFields.classList.remove('hidden');
+                } else {
+                    extraFields.classList.add('hidden');
+                }
+            }
+        }
+
+        function handleLogin() {
+            const usernameInput = document.getElementById('login-username').value.trim().toLowerCase();
+            const passwordInput = document.getElementById('login-password').value.trim();
+            const roleInput = document.getElementById('login-role')?.value || 'Student';
+
+            if (!passwordInput) { alert('Please enter your password.'); return; }
+
+            let adminUser = state.users.find(u => u.role === 'Admin');
+
+            if (usernameInput === 'admin' && adminUser && passwordInput === adminUser.password) {
+                state.currentUser = adminUser;
+                state.showLoginCountdown = false;
+                render();
+                return;
+            }
+
+            if (!usernameInput) { alert('Please enter User ID or username.'); return; }
+
+            let foundUser = state.users.find(u => u.username.toLowerCase() === usernameInput);
+
+            if (!foundUser) {
+                alert('User not found. Please check your username or register.');
+                return;
+            }
+
+            if (foundUser.password !== passwordInput) {
+                alert('Incorrect password. Please try again.');
+                return;
+            }
+
+            if (foundUser.status === 'locked') {
+                alert('Your account has been locked due to security violations or multiple device/tab login attempts. Please contact the administrator to unlock it.');
+                return;
+            }
+
+            if (foundUser.role === 'Student') {
+                const sessionKey = 'cps_active_session_' + foundUser.username;
+                const existingSession = localStorage.getItem(sessionKey);
+
+                if (existingSession) {
+                    foundUser.status = 'locked';
+                    saveState();
+                    alert('Security Alert: Multiple device or tab login attempt detected! Your account has been locked immediately.');
+                    render();
+                    return;
+                }
+
+                const sessionToken = Date.now() + '_' + Math.random();
+                localStorage.setItem(sessionKey, sessionToken);
+                foundUser.sessionToken = sessionToken;
+
+                const studentClass = document.getElementById('login-class')?.value || foundUser.class;
+                const classExams = state.exams.filter(exam => 
+                    exam.class === studentClass || 
+                    (exam.targetClasses && exam.targetClasses.includes(studentClass))
+                );
+                if (classExams.length === 0) {
+                    alert('No exam is there for your class.');
+                    localStorage.removeItem(sessionKey);
+                    return;
+                }
+                foundUser.class = studentClass;
+            }
+
+            if (foundUser.role === 'Teacher' && foundUser.status !== 'approved') {
+                alert('Your teacher account is pending administrator authorization. Please contact Admin.');
+                return;
+            }
+
+            state.currentUser = foundUser;
+            state.showLoginCountdown = (foundUser.role === 'Student');
+            render();
+        }
+
+        function logout() {
+            if (state.currentUser && state.currentUser.role === 'Student') {
+                localStorage.removeItem('cps_active_session_' + state.currentUser.username);
+            }
+            if (state.activeExamInterval) clearInterval(state.activeExamInterval);
+            if (window.loginCountdownInterval) {
+                clearInterval(window.loginCountdownInterval);
+                window.loginCountdownInterval = null;
+            }
+            state.currentUser = null;
+            state.showLoginCountdown = false;
+            render();
+        }
+
+        // ==================== MANAGEMENT DASHBOARD ====================
+        function renderManagementDashboard() {
+            const isTeacher = state.currentUser.role === 'Teacher';
+            return `
+                <div class="space-y-6">
+                    <div class="flex flex-wrap gap-3 border-b border-slate-200 pb-4">
+                        ${!isTeacher ? `<button onclick="switchTab('users')" class="px-5 py-3 rounded-2xl font-bold text-sm transition shadow-sm ${state.activeTab === 'users' ? 'bg-blue-950 text-white shadow-md' : 'bg-white text-slate-700 hover:bg-slate-200 border'}">👥 User & Teacher Approvals</button>` : ''}
+                        <button onclick="switchTab('exams')" class="px-5 py-3 rounded-2xl font-bold text-sm transition shadow-sm ${state.activeTab === 'exams' ? 'bg-blue-950 text-white shadow-md' : 'bg-white text-slate-700 hover:bg-slate-200 border'}">🕒 Exam Schedules & QP Setup</button>
+                        <button onclick="switchTab('grading')" class="px-5 py-3 rounded-2xl font-bold text-sm transition shadow-sm ${state.activeTab === 'grading' ? 'bg-blue-950 text-white shadow-md' : 'bg-white text-slate-700 hover:bg-slate-200 border'}">✍️ Descriptive Grading Queue</button>
+                        <button onclick="switchTab('results')" class="px-5 py-3 rounded-2xl font-bold text-sm transition shadow-sm ${state.activeTab === 'results' ? 'bg-blue-950 text-white shadow-md' : 'bg-white text-slate-700 hover:bg-slate-200 border'}">📊 Class-wise Submissions & Delete</button>
+                        <button onclick="switchTab('preview')" class="px-5 py-3 rounded-2xl font-bold text-sm transition shadow-sm ${state.activeTab === 'preview' ? 'bg-green-700 text-white shadow-md' : 'bg-white text-slate-700 hover:bg-slate-200 border'}">🔍 Live Exam Preview</button>
+                    </div>
+
+                    <div class="bg-white p-6 md:p-8 rounded-3xl shadow-xl border border-slate-200">
+                        ${renderManagementTabContent()}
+                    </div>
+                </div>
+            `;
+        }
+
+        function switchTab(tab) { state.activeTab = tab; render(); }
+
+        function renderManagementTabContent() {
+            const isTeacher = state.currentUser.role === 'Teacher';
+            const teacherSubject = isTeacher ? state.currentUser.subject.toLowerCase() : null;
+            const visibleExams = isTeacher ? state.exams.filter(e => (e.subjectId && e.subjectId.toLowerCase() === teacherSubject) || (e.subject && e.subject.toLowerCase() === teacherSubject)) : state.exams;
+
+            if (state.activeTab === 'users' && !isTeacher) {
+                const pendingTeachers = state.users.filter(u => u.role === 'Teacher' && u.status === 'pending');
+                const approvedStaff = state.users.filter(u => (u.role === 'Teacher' || u.role === 'Admin') && u.status === 'approved');
+                const approvedTeachers = approvedStaff.filter(u => u.role === 'Teacher');
+
+                return `
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                        <div>
+                            <h3 class="text-2xl font-extrabold text-blue-950 mb-1">Teacher & User Authorizations</h3>
+                            <p class="text-sm text-slate-600">Authorize newly registered teachers and manage users.</p>
+                        </div>
+                        <div class="flex gap-3 flex-wrap">
+                            <button onclick="openDeleteStudentModal()" class="bg-red-600 hover:bg-red-700 text-white px-5 py-3 rounded-2xl font-bold text-xs shadow-lg">🗑️ Delete Student</button>
+                            <button onclick="openUnlockStudentModal()" class="bg-amber-600 hover:bg-amber-700 text-white px-5 py-3 rounded-2xl font-bold text-xs shadow-lg">🔓 Unlock Student</button>
+                            <button onclick="openAddUserModal()" class="bg-blue-950 hover:bg-blue-900 text-white px-5 py-3 rounded-2xl font-bold text-xs shadow-lg">+ Add New User</button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-8 mb-8">
+                        <div class="border p-6 rounded-3xl bg-amber-50/50 border-amber-200">
+                            <h4 class="font-black text-lg text-amber-900 mb-4">⏳ Pending Teacher Authorizations (${pendingTeachers.length})</h4>
+                            <div class="space-y-3">
+                                ${pendingTeachers.length === 0 ? '<p class="text-xs text-slate-500 font-medium">No pending teacher registrations requiring authorization.</p>' : pendingTeachers.map(t => `
+                                    <div class="flex justify-between items-center bg-white p-4 rounded-2xl border shadow-sm">
+                                        <div>
+                                            <p class="font-bold text-slate-800 text-sm">${t.name} <span class="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full ml-2">Subject: ${t.subject.toUpperCase()}</span></p>
+                                            <p class="text-xs text-slate-500 font-semibold">Username: ${t.username} | Role: Teacher</p>
+                                        </div>
+                                        <div class="flex gap-2">
+                                            <button onclick="approveTeacher('${t.username}')" class="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow">Authorize</button>
+                                            <button onclick="deleteUser('${t.username}')" class="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow">Reject</button>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="border p-6 rounded-3xl bg-slate-50">
+                                <h4 class="font-black text-lg text-blue-950 mb-4">👨‍🏫 Approved Teachers & Admins</h4>
+                                <div class="space-y-4 mb-4">
+                                    <div>
+                                        <label class="block text-xs font-extrabold text-slate-700 uppercase mb-2">Select Teacher to Delete/Remove:</label>
+                                        <div class="flex gap-2">
+                                            <select id="delete-teacher-select" class="flex-1 border p-3 rounded-xl text-xs bg-white font-semibold cursor-pointer">
+                                                ${approvedTeachers.length === 0 ? '<option value="">No approved teachers available</option>' : approvedTeachers.map(t => `<option value="${t.username}">${t.name} (${t.subject.toUpperCase()})</option>`).join('')}
+                                            </select>
+                                            <button onclick="deleteSelectedTeacher()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-xl font-bold text-xs shadow">Remove</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="space-y-3">
+                                    ${approvedStaff.map(t => `
+                                        <div class="flex justify-between items-center bg-white p-4 rounded-2xl border shadow-sm">
+                                            <div>
+                                                <p class="font-bold text-slate-800 text-sm">${t.name}</p>
+                                                <p class="text-xs text-slate-500 font-semibold">Username: ${t.username} (${t.role}) ${t.subject ? `| Subject: <b>${t.subject.toUpperCase()}</b>` : ''}</p>
+                                            </div>
+                                            ${t.username !== 'admin' ? `<button onclick="deleteUser('${t.username}')" class="text-red-600 hover:text-red-800 text-xs font-bold px-3 py-1.5 bg-red-50 rounded-xl">Remove</button>` : ''}
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+
+                            <div class="border p-6 rounded-3xl bg-slate-50">
+                                <h4 class="font-black text-lg text-blue-950 mb-4">🎓 Students Roster Control</h4>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-xs font-extrabold text-slate-700 uppercase mb-2">Select Target Class & Section:</label>
+                                        <select id="manage-class-target" class="w-full border p-3.5 rounded-2xl text-xs bg-white font-semibold cursor-pointer">
+                                            <option value="Class 9th - Section A">Class 9th - Section A</option>
+                                            <option value="Class 9th - Section B">Class 9th - Section B</option>
+                                            <option value="Class 10th - Section A">Class 10th - Section A</option>
+                                            <option value="Class 10th - Section B">Class 10th - Section B</option>
+                                            <option value="Class 11th - Science A">Class 11th - Science A</option>
+                                            <option value="Class 11th - Science B">Class 11th - Science B</option>
+                                            <option value="Class 12th - Science A">Class 12th - Section A</option>
+                                            <option value="Class 12th - Science B">Class 12th - Section B</option>
+                                        </select>
+                                    </div>
+                                    <div class="flex gap-3 flex-wrap">
+                                        <button onclick="purgeClassStudents()" class="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-2xl font-bold text-xs shadow min-w-[90px]">Purge Class</button>
+                                        <button onclick="viewClassStudentsModal()" class="flex-1 bg-blue-950 hover:bg-blue-900 text-white py-3 rounded-2xl font-bold text-xs shadow min-w-[90px]">View Roster</button>
+                                        <button onclick="downloadClassRoster()" class="w-full bg-green-700 hover:bg-green-800 text-white py-3 rounded-2xl font-bold text-xs shadow">📥 Download Roster (CSV)</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (state.activeTab === 'exams') {
+                return `
+                    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
+                        <div>
+                            <h3 class="text-2xl font-extrabold text-blue-950 mb-1">Exam Schedules & QP Setup ${isTeacher ? `(${teacherSubject.toUpperCase()})` : ''}</h3>
+                            <p class="text-sm text-slate-600"></p>
+                        </div>
+                        ${!isTeacher ? `
+                            <div class="flex flex-row items-center gap-3 flex-wrap lg:flex-nowrap">
+                                <select id="delete-subject-select" class="border p-3 rounded-2xl text-xs bg-white font-semibold cursor-pointer">
+                                    ${visibleExams.length === 0 ? '<option value="">No subjects available</option>' : visibleExams.map(e => `<option value="${e.id}">${e.name}</option>`).join('')}
+                                </select>
+                                <button onclick="deleteSelectedSubject()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-3 rounded-2xl font-bold text-xs shadow-lg whitespace-nowrap">Delete Subject</button>
+                                <button onclick="openCreateExamModal()" class="bg-blue-950 hover:bg-blue-900 text-white px-5 py-3 rounded-2xl font-bold text-xs shadow-lg whitespace-nowrap">+ Create New Subject / Exam</button>
+                            </div>
+                        ` : ''}
+                    </div>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        ${visibleExams.map(exam => `
+                            <div class="border rounded-2xl p-4 bg-slate-50 shadow-sm flex flex-col justify-between">
+                                <div>
+                                    <div class="flex justify-between items-start mb-2">
+                                        <h4 class="font-extrabold text-sm text-blue-950">${exam.name}</h4>
+                                        <span class="px-2.5 py-0.5 text-[10px] font-black rounded-full ${exam.status === 'LIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${exam.status}</span>
+                                    </div>
+                                    <p class="text-[11px] text-slate-500 mb-4 font-semibold">Class: <b>${exam.class || 'All'}</b> | Qs: ${exam.questions ? exam.questions.length : 0}</p>
+                                    
+                                    <div class="space-y-2 text-xs mb-4">
+                                        <div>
+                                            <label class="block font-bold text-slate-700 mb-1 text-[11px]">Status Toggle:</label>
+                                            <button onclick="toggleExamStatus('${exam.id}')" class="w-full ${exam.status === 'LIVE' ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'} text-white py-2 rounded-xl font-bold shadow text-xs">${exam.status === 'LIVE' ? 'Make Offline' : 'Make Live'}</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } else if (state.activeTab === 'grading') {
+                const filteredSubs = isTeacher ? state.submissions.filter(s => s.subject.toLowerCase().includes(teacherSubject)) : state.submissions;
+                
+                let descriptiveItems = [];
+                filteredSubs.forEach((sub, subIdx) => {
+                    const examObj = state.exams.find(e => e.id === sub.examId || (e.name.toLowerCase() === sub.subject.toLowerCase() && (e.class === sub.class || e.class === 'All Sections')));
+                    if (examObj && examObj.questions) {
+                        examObj.questions.forEach((q) => {
+                            if (q.type === 'descriptive') {
+                                const ans = sub.answers && sub.answers[q.id];
+                                if (ans !== undefined && ans !== '') {
+                                    descriptiveItems.push({
+                                        subIndex: state.submissions.findIndex(s => s === sub),
+                                        studentName: sub.name,
+                                        studentClass: sub.class,
+                                        subjectName: sub.subject,
+                                        questionText: q.q,
+                                        questionId: q.id,
+                                        answerText: ans,
+                                        time: sub.time,
+                                        gradedMarks: (sub.gradedMarks && sub.gradedMarks[q.id]) || ''
+                                    });
+                                }
+                            }
+                        });
+                    }
+                });
+
+                return `
+                    <div class="space-y-6">
+                        <div>
+                            <h3 class="text-2xl font-extrabold text-blue-950 mb-1">✍️ Descriptive Grading Queue</h3>
+                            <p class="text-sm text-slate-600">Review and assign grades/marks to subjective and descriptive answers submitted by students.</p>
+                        </div>
+                        <div class="space-y-4">
+                            ${descriptiveItems.length === 0 ? `<div class="p-8 text-center text-slate-500 font-medium bg-slate-50 rounded-3xl border">No descriptive submissions requiring grading at this time.</div>` : descriptiveItems.map((item, idx) => `
+                                <div class="p-6 bg-slate-50 rounded-3xl border space-y-4 shadow-sm">
+                                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-3 gap-2">
+                                        <div>
+                                            <h4 class="font-extrabold text-base text-blue-950">${item.studentName} <span class="text-xs font-normal text-slate-500">(${item.studentClass})</span></h4>
+                                            <p class="text-xs font-bold text-blue-700 uppercase">Subject: ${item.subjectName} | Submitted: ${item.time}</p>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <label class="text-xs font-bold text-slate-700">Marks:</label>
+                                            <input type="text" id="grade-input-${item.subIndex}-${item.questionId}" value="${item.gradedMarks}" class="w-20 border p-2 rounded-xl text-xs bg-white font-bold text-center" placeholder="e.g. 8/10">
+                                            <button onclick="saveDescriptiveGrade(${item.subIndex}, ${item.questionId})" class="bg-blue-950 hover:bg-blue-900 text-white px-4 py-2 rounded-xl text-xs font-bold shadow">Save Grade</button>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-2 text-xs md:text-sm">
+                                        <div class="font-bold text-slate-900 bg-white p-4 rounded-2xl border">Q: ${item.questionText}</div>
+                                        <div class="font-medium text-slate-700 bg-blue-50/50 p-4 rounded-2xl border border-blue-100"><b>Student Answer:</b><br>${item.answerText}</div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            } else if (state.activeTab === 'results') {
+                const subSubjects = [
+                    { id: 'physics', name: 'Physics' },
+                    { id: 'chemistry', name: 'Chemistry' },
+                    { id: 'mathematics', name: 'Mathematics' },
+                    { id: 'biology', name: 'Biology' }
+                ];
+                const activeSubjects = isTeacher ? subSubjects.filter(s => s.id === teacherSubject) : subSubjects;
+                const filteredSubmissions = isTeacher ? state.submissions.filter(s => s.subject.toLowerCase().includes(teacherSubject)) : state.submissions;
+
+                return `
+                    <h3 class="text-2xl font-extrabold text-blue-950 mb-2">Multi-Class Simultaneous Exam Upload & Submissions</h3>
+                    <p class="text-sm text-slate-600 mb-8">Upload question papers (.json, .txt, .pdf, .docx with figures/charts and variable case studies) for <b>multiple classes at the same time</b> (e.g. Physics paper for classes 9, 10, 11, 12 simultaneously).</p>
+                    
+                    <div class="space-y-8">
+                        <div class="p-8 border rounded-3xl bg-slate-50 space-y-6">
+                            <h4 class="font-black text-lg text-blue-950">📁 Upload Question Paper for Multiple Classes Simultaneously</h4>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label class="block text-xs font-extrabold text-slate-700 uppercase mb-2">Select Subject:</label>
+                                    <select id="qp-subject-target" class="w-full border p-3.5 rounded-2xl text-xs bg-white font-semibold cursor-pointer">
+                                        ${activeSubjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-extrabold text-slate-700 uppercase mb-2">Exam Duration (Mins):</label>
+                                    <input type="number" id="qp-duration-field" value="45" min="5" max="180" class="w-full border p-3.5 rounded-2xl text-xs bg-white font-medium">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-extrabold text-slate-700 uppercase mb-2">Start Time:</label>
+                                    <input type="datetime-local" id="qp-start-time-field" class="w-full border p-3 rounded-2xl text-xs bg-white font-medium">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-extrabold text-slate-700 uppercase mb-2">End Time:</label>
+                                    <input type="datetime-local" id="qp-end-time-field" class="w-full border p-3 rounded-2xl text-xs bg-white font-medium">
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between items-center mb-2">
+                                    <label class="block text-xs font-extrabold text-slate-700 uppercase">Select Target Classes (Check all applicable classes):</label>
+                                    <button type="button" onclick="toggleSelectAllClasses(true)" class="text-xs font-bold text-blue-600 hover:underline">Select All</button>
+                                </div>
+                                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 bg-white p-4 rounded-2xl border">
+                                    <label class="flex items-center space-x-2 text-xs font-medium cursor-pointer"><input type="checkbox" name="target-class-chk" value="Class 9th - Section A" class="rounded"><span>Class 9th - Sec A</span></label>
+                                    <label class="flex items-center space-x-2 text-xs font-medium cursor-pointer"><input type="checkbox" name="target-class-chk" value="Class 9th - Section B" class="rounded"><span>Class 9th - Sec B</span></label>
+                                    <label class="flex items-center space-x-2 text-xs font-medium cursor-pointer"><input type="checkbox" name="target-class-chk" value="Class 10th - Section A" class="rounded"><span>Class 10th - Sec A</span></label>
+                                    <label class="flex items-center space-x-2 text-xs font-medium cursor-pointer"><input type="checkbox" name="target-class-chk" value="Class 10th - Section B" class="rounded"><span>Class 10th - Sec B</span></label>
+                                    <label class="flex items-center space-x-2 text-xs font-medium cursor-pointer"><input type="checkbox" name="target-class-chk" value="Class 11th - Science A" class="rounded"><span>Class 11th - Sci A</span></label>
+                                    <label class="flex items-center space-x-2 text-xs font-medium cursor-pointer"><input type="checkbox" name="target-class-chk" value="Class 11th - Science B" class="rounded"><span>Class 11th - Sci B</span></label>
+                                    <label class="flex items-center space-x-2 text-xs font-medium cursor-pointer"><input type="checkbox" name="target-class-chk" value="Class 12th - Science A" class="rounded"><span>Class 12th - Sci A</span></label>
+                                    <label class="flex items-center space-x-2 text-xs font-medium cursor-pointer"><input type="checkbox" name="target-class-chk" value="Class 12th - Science B" class="rounded"><span>Class 12th - Sci B</span></label>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-extrabold text-slate-700 uppercase mb-2">Select Question Paper File (.json, .txt, .pdf, .docx):</label>
+                                <input type="file" id="qp-file-field" accept=".json,.txt,.pdf,.doc,.docx" class="w-full border p-3 rounded-2xl text-xs bg-white font-medium">
+                                <p class="text-xs text-slate-500 mt-1">This uploaded question paper will be simultaneously assigned to all selected classes above.</p>
+                            </div>
+
+                            <div>
+                                <button onclick="uploadAndParseMultiClassQP()" class="w-full bg-blue-950 hover:bg-blue-900 text-white py-4 rounded-2xl text-xs font-bold shadow-lg">Upload & Assign to Selected Classes Simultaneously</button>
+                            </div>
+                        </div>
+
+                        <!-- Classwise Submissions & Deletion Controls -->
+                        <div class="p-8 border rounded-3xl bg-slate-50 space-y-6">
+                            <div class="flex flex-col md:flex-row justify-between items-center gap-4 border-b pb-4">
+                                <h4 class="font-black text-lg text-blue-950">📋 Student Submissions & Classwise Deletion</h4>
+                                <div class="flex items-center gap-3">
+                                    <select id="delete-class-filter" class="border p-2.5 rounded-xl text-xs bg-white font-semibold">
+                                        <option value="ALL">All Classes</option>
+                                        <option value="Class 9th - Section A">Class 9th - Section A</option>
+                                        <option value="Class 9th - Section B">Class 9th - Section B</option>
+                                        <option value="Class 10th - Section A">Class 10th - Section A</option>
+                                        <option value="Class 10th - Section B">Class 10th - Section B</option>
+                                        <option value="Class 11th - Science A">Class 11th - Science A</option>
+                                        <option value="Class 11th - Science B">Class 11th - Science B</option>
+                                        <option value="Class 12th - Science A">Class 12th - Science A</option>
+                                        <option value="Class 12th - Science B">Class 12th - Science B</option>
+                                    </select>
+                                    <button onclick="deleteSubmissionsByClass()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl text-xs font-bold shadow">🗑️ Delete Class Data</button>
+                                    <button onclick="exportCSV()" class="bg-green-700 hover:bg-green-800 text-white px-5 py-2.5 rounded-xl text-xs font-bold shadow">Download CSV</button>
+                                </div>
+                            </div>
+
+                            <div class="overflow-x-auto border rounded-2xl bg-white">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-slate-100 border-b font-bold">
+                                        <tr>
+                                            <th class="p-4">Student Name</th>
+                                            <th class="p-4">Class & Section</th>
+                                            <th class="p-4">Subject</th>
+                                            <th class="p-4">Score / Answers</th>
+                                            <th class="p-4">Time</th>
+                                            <th class="p-4 text-center">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y">
+                                        ${filteredSubmissions.length === 0 ? `<tr><td colspan="6" class="p-6 text-center text-slate-500 font-medium">No submissions recorded.</td></tr>` : filteredSubmissions.map((s, index) => `
+                                            <tr>
+                                                <td class="p-4 font-bold">${s.name}</td>
+                                                <td class="p-4">${s.class}</td>
+                                                <td class="p-4">${s.subject}</td>
+                                                <td class="p-4 font-black text-blue-950">${s.score}</td>
+                                                <td class="p-4 text-slate-500">${s.time}</td>
+                                                <td class="p-4 text-center">
+                                                    <button onclick="deleteSingleSubmission(${index})" class="text-red-600 hover:text-red-800 font-bold px-3 py-1 bg-red-50 rounded-lg">Delete</button>
+                                                </td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (state.activeTab === 'preview') {
+                const prevExams = isTeacher ? state.exams.filter(e => (e.subjectId && e.subjectId.toLowerCase() === teacherSubject) || (e.subject && e.subject.toLowerCase() === teacherSubject)) : state.exams;
+                return `
+                    <h3 class="text-2xl font-extrabold text-blue-950 mb-2">🔍 CBT Exam Preview (One-by-One Questions & Figures)</h3>
+                    <p class="text-sm text-slate-600 mb-8">Inspect how question papers render with individual question navigation and embedded diagrams/circuits for specific classes.</p>
+                    <div class="flex gap-4 mb-6 items-end bg-slate-50 p-6 border rounded-3xl">
+                        <div class="flex-grow">
+                            <label class="block text-xs font-extrabold text-slate-700 uppercase mb-2">Select Subject & Class Exam:</label>
+                            <select id="preview-sub-target" class="w-full border p-3.5 rounded-2xl text-xs bg-white font-semibold cursor-pointer">
+                                ${prevExams.map(e => `<option value="${e.id}">${e.name} (${e.class || 'All'})</option>`).join('')}
+                            </select>
+                        </div>
+                        <button onclick="runPreview()" class="bg-blue-950 hover:bg-blue-900 text-white px-8 py-3.5 rounded-2xl text-xs font-bold shadow">Run CBT Preview</button>
+                    </div>
+                    <div id="preview-box" class="border p-8 rounded-3xl bg-white shadow-xl hidden">
+                        <h4 id="preview-title" class="font-black text-xl text-blue-950 mb-4 border-b pb-3"></h4>
+                        <div id="preview-content" class="space-y-6"></div>
+                    </div>
+                `;
+            }
+        }
+
+        function toggleSelectAllClasses(select) {
+            const checkboxes = document.querySelectorAll('input[name="target-class-chk"]');
+            checkboxes.forEach(chk => chk.checked = select);
+        }
+
+        // ==================== MODAL SYSTEM ====================
+        function showModal(htmlContent) {
+            document.getElementById('modal-content').innerHTML = htmlContent;
+            document.getElementById('app-modal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('app-modal').classList.add('hidden');
+        }
+
+        function viewClassStudentsModal() {
+            const cls = document.getElementById('manage-class-target').value;
+            const students = state.users.filter(u => u.role === 'Student' && u.class === cls);
+            showModal(`
+                <h3 class="text-xl font-black text-blue-950 mb-4">Roster: ${cls}</h3>
+                <ul class="space-y-3 mb-6">
+                    ${students.length === 0 ? '<li class="text-slate-500 text-xs">No students found.</li>' : students.map(s => `
+                        <li class="p-3 bg-slate-50 rounded-xl border flex justify-between items-center text-xs">
+                            <span class="font-bold text-slate-800">${s.name}</span>
+                            <span class="text-slate-500">ID: ${s.username} (Roll: ${s.roll || 'N/A'})</span>
+                        </li>
+                    `).join('')}
+                </ul>
+                <button onclick="closeModal()" class="w-full bg-blue-950 text-white py-3 rounded-xl font-bold text-xs">Close Window</button>
+            `);
+        }
+
+        function openUnlockStudentModal() {
+            const lockedStudents = state.users.filter(u => u.role === 'Student' && u.status === 'locked');
+            showModal(`
+                <h3 class="text-xl font-black text-blue-950 mb-4">Unlock Student Account</h3>
+                <div class="space-y-4 mb-6 text-xs">
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-2">Select Locked Student:</label>
+                        <select id="unlock-student-username" class="w-full border p-3 rounded-xl bg-slate-50 font-semibold cursor-pointer">
+                            ${lockedStudents.length === 0 ? '<option value="">No locked students found</option>' : lockedStudents.map(s => `<option value="${s.username}">${s.name} (${s.username} - ${s.class})</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="submitUnlockStudent()" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 rounded-xl font-bold text-xs" ${lockedStudents.length === 0 ? 'disabled' : ''}>Unlock Account</button>
+                    <button onclick="closeModal()" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 py-3 rounded-xl font-bold text-xs">Cancel</button>
+                </div>
+            `);
+        }
+
+        function submitUnlockStudent() {
+            const username = document.getElementById('unlock-student-username').value;
+            if (!username) { alert('No student selected.'); return; }
+            const student = state.users.find(u => u.username === username);
+            if (student) {
+                student.status = 'approved';
+                localStorage.removeItem('cps_active_session_' + student.username);
+                saveState();
+                closeModal();
+                render();
+                alert(`Student ${student.name} account unlocked successfully.`);
+            }
+        }
+
+        function openDeleteStudentModal() {
+            showModal(`
+                <h3 class="text-xl font-black text-blue-950 mb-4">Delete Specific Student</h3>
+                <div class="space-y-4 mb-6 text-xs">
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-2">Filter / Select Class:</label>
+                        <select id="del-student-class" class="w-full border p-3 rounded-xl bg-slate-50 font-semibold cursor-pointer">
+                            <option value="">-- All Classes --</option>
+                            <option value="Class 9th - Section A">Class 9th - Section A</option>
+                            <option value="Class 9th - Section B">Class 9th - Section B</option>
+                            <option value="Class 10th - Section A">Class 10th - Section A</option>
+                            <option value="Class 10th - Section B">Class 10th - Section B</option>
+                            <option value="Class 11th - Science A">Class 11th - Science A</option>
+                            <option value="Class 11th - Science B">Class 11th - Science B</option>
+                            <option value="Class 12th - Science A">Class 12th - Section A</option>
+                            <option value="Class 12th - Science B">Class 12th - Section B</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-2">Enter Student Username / ID / Exact Name:</label>
+                        <input type="text" id="del-student-query" class="w-full border p-3 rounded-xl bg-slate-50 font-medium" placeholder="e.g. rahul9 or RAHUL KUMAR">
+                    </div>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="submitDeleteStudent()" class="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold text-xs">Delete Student</button>
+                    <button onclick="closeModal()" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 py-3 rounded-xl font-bold text-xs">Cancel</button>
+                </div>
+            `);
+        }
+
+        function submitDeleteStudent() {
+            const query = document.getElementById('del-student-query').value.trim().toLowerCase();
+            const cls = document.getElementById('del-student-class').value;
+
+            if (!query && !cls) {
+                alert('Please enter student username/name or select a class.');
+                return;
+            }
+
+            let students = state.users.filter(u => u.role === 'Student');
+            let targetStudent = null;
+
+            if (query) {
+                targetStudent = students.find(u => 
+                    (u.username.toLowerCase() === query || 
+                     u.name.toLowerCase() === query || 
+                     (u.roll && u.roll.toLowerCase() === query)) &&
+                    (!cls || u.class === cls)
+                );
+            } else if (cls) {
+                let classStudents = students.filter(u => u.class === cls);
+                if (classStudents.length === 0) {
+                    alert('No students found in this class.');
+                    return;
+                }
+                let namesList = classStudents.map(s => `${s.name} (Username: ${s.username})`).join('\n');
+                let chosen = prompt(`Students in ${cls}:\n${namesList}\n\nEnter exact Username/ID of student to delete:`);
+                if (chosen) {
+                    targetStudent = classStudents.find(u => u.username.toLowerCase() === chosen.trim().toLowerCase());
+                }
+            }
+
+            if (targetStudent) {
+                if (confirm(`Are you sure you want to delete student: ${targetStudent.name} (${targetStudent.username})?`)) {
+                    localStorage.removeItem('cps_active_session_' + targetStudent.username);
+                    state.users = state.users.filter(u => u.username !== targetStudent.username);
+                    saveState();
+                    closeModal();
+                    render();
+                    alert(`Student ${targetStudent.name} deleted successfully.`);
+                }
+            } else {
+                alert('Student not found matching the criteria.');
+            }
+        }
+
+        function downloadClassRoster() {
+            const cls = document.getElementById('manage-class-target').value;
+            const students = state.users.filter(u => u.role === 'Student' && u.class === cls);
+            if (students.length === 0) {
+                alert(`No students found in ${cls} to download.`);
+                return;
+            }
+            let csv = 'Name,Username,Class & Section,Roll Number,Status\n';
+            students.forEach(s => {
+                csv += `"${s.name}","${s.username}","${s.class}","${s.roll || 'N/A'}","${s.status || 'approved'}"\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `student_roster_${cls.replace(/[^a-zA-Z0-9]/g, '_')}.csv`;
+            a.click();
+        }
+
+        function openCreateExamModal() {
+            showModal(`
+                <h3 class="text-xl font-black text-blue-950 mb-4">Create New Subject / Exam</h3>
+                <div class="space-y-4 mb-6 text-xs">
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-2">Subject Name:</label>
+                        <input type="text" id="new-exam-name" class="w-full border p-3 rounded-xl bg-slate-50 font-medium" placeholder="e.g. Social Science">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-2">Target Class:</label>
+                        <select id="new-exam-class" class="w-full border p-3 rounded-xl bg-slate-50 font-semibold">
+                            <option value="All Sections">All Sections</option>
+                            <option value="Class 9th - Section A">Class 9th - Section A</option>
+                            <option value="Class 10th - Section A">Class 10th - Section A</option>
+                            <option value="Class 11th - Science A">Class 11th - Science A</option>
+                            <option value="Class 12th - Science A">Class 12th - Science A</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-2">Exam Duration (Minutes):</label>
+                        <input type="number" id="new-exam-duration" value="45" class="w-full border p-3 rounded-xl bg-slate-50 font-medium" placeholder="45">
+                    </div>
+                </div>
+                <button onclick="submitNewExam()" class="w-full bg-blue-950 text-white py-3 rounded-xl font-bold text-xs">Create Exam</button>
+            `);
+        }
+
+        function submitNewExam() {
+            const name = document.getElementById('new-exam-name').value.trim();
+            const cls = document.getElementById('new-exam-class').value;
+            const duration = parseInt(document.getElementById('new-exam-duration').value) || 45;
+            if (!name) { alert('Please enter a subject name.'); return; }
+            const subjectId = name.toLowerCase().replace(/\s+/g, '');
+            const id = `${subjectId}_${cls.toLowerCase().replace(/[^a-z0-9]/g, '')}_${Date.now()}`;
+
+            state.exams.push({
+                id: id,
+                subjectId: subjectId,
+                name: `${name} (${cls})`,
+                subject: name,
+                class: cls,
+                status: 'OFFLINE',
+                startTime: '',
+                endTime: '',
+                durationMinutes: duration,
+                questions: []
+            });
+            saveState();
+            closeModal();
+            render();
+            alert('New exam created successfully!');
+        }
+
+        function deleteSelectedSubject() {
+            const examId = document.getElementById('delete-subject-select')?.value;
+            if (!examId) { alert('Please select a subject to delete.'); return; }
+            const exam = state.exams.find(e => e.id === examId);
+            if (exam && confirm(`Are you sure you want to delete exam/subject "${exam.name}"?`)) {
+                state.exams = state.exams.filter(e => e.id !== examId);
+                saveState();
+                render();
+                alert('Subject/Exam deleted successfully.');
+            }
+        }
+
+        function openRegisterModal() {
+            const activeSubjects = [
+                { id: 'physics', name: 'Physics' },
+                { id: 'chemistry', name: 'Chemistry' },
+                { id: 'mathematics', name: 'Mathematics' },
+                { id: 'biology', name: 'Biology' }
+            ].map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+
+            showModal(`
+                <h3 class="text-xl font-black text-blue-950 mb-4">New User Registration</h3>
+                <div class="space-y-4 mb-6 text-xs">
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-2">Full Name:</label>
+                        <input type="text" id="reg-name" class="w-full border p-3 rounded-xl bg-slate-50 font-medium" placeholder="e.g. Amit Kumar">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-2">Username / Email ID:</label>
+                        <input type="text" id="reg-username" class="w-full border p-3 rounded-xl bg-slate-50 font-medium" placeholder="e.g. amit10">
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-2">Password:</label>
+                        <div class="relative">
+                            <input type="password" id="reg-password" class="w-full border p-3 pr-10 rounded-xl bg-slate-50 font-medium" placeholder="Create password">
+                            <button type="button" onclick="togglePasswordVisibility('reg-password', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 text-sm focus:outline-none">👁️</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 uppercase mb-2">Role:</label>
+                        <select id="reg-role" onchange="toggleRegRoleFields()" class="w-full border p-3 rounded-xl bg-slate-50 font-semibold cursor-pointer">
+                            <option value="Student">Student</option>
+                            <option value="Teacher">Teacher</option>
+                        </select>
+                    </div>
+                    <div id="reg-teacher-subject-field" class="hidden space-y-2">
+                        <label class="block font-bold text-slate-700 uppercase mb-2">Assigned Subject (Teacher Confinement):</label>
+                        <select id="reg-subject" class="w-full border p-3 rounded-xl bg-slate-50 font-semibold cursor-pointer">
+                            ${activeSubjects}
+                        </select>
+                    </div>
+                    <div id="reg-student-only-fields" class="space-y-4">
+                        <div>
+                            <label class="block font-bold text-slate-700 uppercase mb-2">Class & Section:</label>
+                            <select id="reg-class" class="w-full border p-3 rounded-xl bg-slate-50 font-semibold cursor-pointer">
+                                <option value="Class 9th - Section A">Class 9th - Section A</option>
+                                <option value="Class 9th - Section B">Class 9th - Section B</option>
+                                <option value="Class 10th - Section A">Class 10th - Section A</option>
+                                <option value="Class 10th - Section B">Class 10th - Section B</option>
+                                <option value="Class 11th - Science A">Class 11th - Science A</option>
+                                <option value="Class 11th - Science B">Class 11th - Science B</option>
+                                <option value="Class 12th - Science A">Class 12th - Science A</option>
+                                <option value="Class 12th - Science B">Class 12th - Science B</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block font-bold text-slate-700 uppercase mb-2">Roll Number:</label>
+                            <input type="number" id="reg-roll" class="w-full border p-3 rounded-xl bg-slate-50 font-medium" placeholder="15">
+                        </div>
+                    </div>
+                </div>
+                <button onclick="submitRegistration()" class="w-full bg-blue-950 text-white py-3 rounded-xl font-bold text-xs">Register Account</button>
+            `);
+        }
+
+        function toggleRegRoleFields() {
+            const role = document.getElementById('reg-role').value;
+            const studentFields = document.getElementById('reg-student-only-fields');
+            const teacherSubjectField = document.getElementById('reg-teacher-subject-field');
+            if (role === 'Teacher') {
+                studentFields.classList.add('hidden');
+                teacherSubjectField.classList.remove('hidden');
+            } else {
+                studentFields.classList.remove('hidden');
+                teacherSubjectField.classList.add('hidden');
+            }
+        }
+
+        function submitRegistration() {
+            const name = document.getElementById('reg-name').value.trim();
+            const username = document.getElementById('reg-username').value.trim().toLowerCase();
+            const password = document.getElementById('reg-password').value.trim();
+            const role = document.getElementById('reg-role').value;
+            const subject = role === 'Teacher' ? document.getElementById('reg-subject').value : 'All';
+            const cls = role === 'Student' ? document.getElementById('reg-class').value : 'N/A';
+            const roll = role === 'Student' ? document.getElementById('reg-roll').value.trim() || '1' : undefined;
+
+            if (!name || !username || !password) { alert('Please fill all required fields.'); return; }
+            if (state.users.some(u => u.username.toLowerCase() === username)) { alert('Username already exists.'); return; }
+
+            const newUser = {
+                id: Date.now(),
+                role: role,
+                class: cls,
+                subject: subject,
+                name: name.toUpperCase(),
+                username: username,
+                password: password,
+                roll: roll,
+                status: role === 'Teacher' ? 'pending' : 'approved'
+            };
+
+            state.users.push(newUser);
+            saveState();
+            closeModal();
+            if (role === 'Teacher') {
+                alert('Teacher registration submitted successfully! Pending Administrator authorization.');
+            } else {
+                alert('Registration successful! You can now log in.');
+            }
+        }
+
+        function approveTeacher(username) {
+            const user = state.users.find(u => u.username === username);
+            if (user) {
+                user.status = 'approved';
+                saveState();
+                render();
+                alert(`Teacher ${user.name} authorized for ${user.subject.toUpperCase()}!`);
+            }
+        }
+
+        function deleteUser(username) {
+            localStorage.removeItem('cps_active_session_' + username);
+            state.users = state.users.filter(u => u.username !== username);
+            saveState();
+            render();
+        }
+
+        function deleteSelectedTeacher() {
+            const username = document.getElementById('delete-teacher-select')?.value;
+            if (!username) { alert('Please select a teacher to remove.'); return; }
+            const teacher = state.users.find(u => u.username === username);
+            if (teacher && confirm(`Are you sure you want to remove teacher ${teacher.name}?`)) {
+                deleteUser(username);
+            }
+        }
+
+        function deleteSingleSubmission(index) {
+            if (confirm('Are you sure you want to delete this submission?')) {
+                state.submissions.splice(index, 1);
+                saveState();
+                render();
+            }
+        }
+
+        function deleteSubmissionsByClass() {
+            const selectedClass = document.getElementById('delete-class-filter').value;
+            if (selectedClass === 'ALL') {
+                if (confirm('Are you sure you want to delete ALL student submissions across all classes?')) {
+                    state.submissions = [];
+                    saveState();
+                    render();
+                }
+            } else {
+                if (confirm(`Are you sure you want to delete all submissions for ${selectedClass}?`)) {
+                    state.submissions = state.submissions.filter(s => s.class !== selectedClass);
+                    saveState();
+                    render();
+                }
+            }
+        }
+
+        function saveDescriptiveGrade(subIndex, qId) {
+            const gradeVal = document.getElementById(`grade-input-${subIndex}-${qId}`).value.trim();
+            if (!state.submissions[subIndex].gradedMarks) {
+                state.submissions[subIndex].gradedMarks = {};
+            }
+            state.submissions[subIndex].gradedMarks[qId] = gradeVal;
+            saveState();
+            alert('Descriptive grade saved successfully!');
+            render();
+        }
+
+        // ==================== STUDENT PORTAL & CBT 1-BY-1 EXAM ENGINE ====================
+        function renderStudentPortal() {
+            const studentClass = state.currentUser.class;
+            const availableExams = state.exams.filter(exam => 
+                exam.class === studentClass || 
+                (exam.targetClasses && exam.targetClasses.includes(studentClass))
+            );
+
+            return `
+                <div class="bg-white p-8 md:p-10 rounded-3xl shadow-2xl border space-y-6">
+                    <div class="border-b pb-6">
+                        <h3 class="text-3xl font-black text-blue-950 mb-1">Welcome, ${state.currentUser.name}</h3>
+                        <p class="text-sm font-semibold text-slate-600">Class & Section: <span class="text-blue-950 font-bold">${state.currentUser.class}</span> | Roll: <span class="text-blue-950 font-bold">${state.currentUser.roll || 'N/A'}</span></p>
+                    </div>
+
+                    <h4 class="font-extrabold text-xl text-blue-950 mb-6">Available Examinations for ${studentClass}</h4>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        ${availableExams.length === 0 ? `<div class="col-span-2 text-center py-8 text-slate-500 font-medium bg-slate-50 rounded-2xl border">No examinations currently published for your class.</div>` : availableExams.map(exam => `
+                            <div class="border rounded-3xl p-6 bg-slate-50 flex flex-col justify-between shadow-sm">
+                                <div>
+                                    <div class="flex justify-between items-start mb-3">
+                                        <h5 class="font-black text-lg text-blue-950">${exam.name}</h5>
+                                        <span class="px-3 py-1 text-xs font-black rounded-full ${exam.status === 'LIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${exam.status}</span>
+                                    </div>
+                                    <p class="text-xs text-slate-500 mb-6 font-medium">Duration: ${exam.durationMinutes || 45} mins | Total Questions: ${exam.questions ? exam.questions.length : 0}</p>
+                                </div>
+                                <button onclick="startExam('${exam.id}')" class="w-full bg-blue-950 hover:bg-blue-900 text-white py-3.5 rounded-2xl font-bold text-xs transition shadow-lg">Start CBT Examination</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function startExam(id) {
+            const exam = state.exams.find(e => e.id === id);
+            if (exam.status !== 'LIVE') { alert('Exam is currently offline.'); return; }
+            if (!exam.questions || exam.questions.length === 0) { alert('No questions uploaded for this exam yet.'); return; }
+
+            let examQuestions = JSON.parse(JSON.stringify(exam.questions));
+
+            state.currentAttemptExam = { ...exam, questions: examQuestions };
+            state.currentQuestionIndex = 0;
+            state.studentAnswers = {};
+            state.questionStatus = {};
+            examQuestions.forEach((q, idx) => { state.questionStatus[idx] = 'unanswered'; });
+
+            renderCBTExamInterface();
+            setupAntiCheat();
+        }
+
+        function renderCBTExamInterface() {
+            const exam = state.currentAttemptExam;
+            const qIndex = state.currentQuestionIndex;
+            const q = exam.questions[qIndex];
+            const container = document.getElementById('view-container');
+
+            container.innerHTML = `
+                <div class="max-w-6xl mx-auto w-full p-4 flex flex-col md:flex-row gap-6">
+                    <!-- Main Question Panel -->
+                    <div class="flex-grow bg-white rounded-3xl shadow-2xl p-6 md:p-8 border flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-center border-b pb-4 mb-6">
+                                <div>
+                                    <h3 class="text-xl font-black text-blue-950">${exam.name} - CBT Exam</h3>
+                                    <p class="text-xs font-semibold text-slate-500">Student: ${state.currentUser.name} (${state.currentUser.class})</p>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-xs font-black text-red-600 uppercase">Anti-Cheat Active 🛡️</div>
+                                    <div id="exam-timer" class="text-base font-black text-blue-950">Loading timer...</div>
+                                </div>
+                            </div>
+
+                            <!-- Question Card -->
+                            <div class="space-y-6">
+                                ${q.caseStudy ? `
+                                    <div class="bg-amber-50 border-2 border-amber-200 p-5 rounded-2xl shadow-sm mb-4">
+                                        <div class="flex items-center gap-2 mb-2 font-black text-amber-900 text-xs uppercase tracking-wider">
+                                            <span>📖 Case Study / Passage</span>
+                                        </div>
+                                        <div class="text-xs md:text-sm text-slate-800 leading-relaxed font-medium">
+                                            ${q.caseStudy}
+                                        </div>
+                                    </div>
+                                ` : ''}
+
+                                <div class="flex justify-between items-center">
+                                    <span class="bg-blue-100 text-blue-900 text-xs font-black px-3 py-1 rounded-full">Question ${qIndex + 1} of ${exam.questions.length}</span>
+                                    <span class="text-xs font-bold text-slate-400 uppercase">${q.type === 'descriptive' ? 'Descriptive / Subjective' : 'Multiple Choice'}</span>
+                                </div>
+
+                                <div class="question-body text-sm md:text-base font-semibold text-slate-900 leading-relaxed bg-slate-50 p-6 rounded-2xl border">
+                                    ${q.q}
+                                </div>
+
+                                ${q.type === 'descriptive' ? `
+                                    <div class="space-y-2">
+                                        <label class="block text-xs font-extrabold text-slate-700 uppercase">Your Answer / Explanation:</label>
+                                        <textarea id="desc-answer-${q.id}" rows="6" oninput="recordDescriptiveAnswer(${q.id}, this.value)" class="w-full border p-4 rounded-2xl text-xs bg-slate-50 focus:ring-2 focus:ring-blue-600 focus:outline-none" placeholder="Type your detailed answer here...">${state.studentAnswers[q.id] || ''}</textarea>
+                                    </div>
+                                ` : `
+                                    <div class="grid grid-cols-1 gap-3">
+                                        ${q.options.map((opt, optIndex) => `
+                                            <label class="flex items-center space-x-3 p-4 bg-slate-50 border rounded-2xl cursor-pointer hover:border-blue-600 text-xs md:text-sm font-medium transition ${state.studentAnswers[q.id] === optIndex ? 'bg-blue-50 border-blue-600 ring-2 ring-blue-600/20' : ''}">
+                                                <input type="radio" name="cbt-q-${q.id}" value="${optIndex}" ${state.studentAnswers[q.id] === optIndex ? 'checked' : ''} onchange="recordMCQAnswer(${q.id}, ${optIndex}, ${qIndex})" class="text-blue-950">
+                                                <span>${opt}</span>
+                                            </label>
+                                        `).join('')}
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+
+                        <!-- Navigation Controls -->
+                        <div class="flex flex-wrap justify-between items-center pt-6 mt-6 border-t gap-3">
+                            <div class="flex gap-2">
+                                <button onclick="prevQuestion()" ${qIndex === 0 ? 'disabled' : ''} class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold px-5 py-3 rounded-xl text-xs disabled:opacity-50">Previous</button>
+                                <button onclick="markForReview(${qIndex})" class="bg-amber-100 hover:bg-amber-200 text-amber-800 font-bold px-5 py-3 rounded-xl text-xs">Mark for Review & Next</button>
+                                ${q.type === 'mcq' ? `<button onclick="clearResponse(${q.id}, ${qIndex})" class="bg-red-50 hover:bg-red-100 text-red-700 font-bold px-4 py-3 rounded-xl text-xs">Clear Response</button>` : ''}
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="nextQuestion()" class="bg-blue-950 hover:bg-blue-900 text-white font-bold px-6 py-3 rounded-xl text-xs shadow">Save & Next</button>
+                                <button onclick="confirmSubmitExam()" class="bg-green-700 hover:bg-green-800 text-white font-bold px-6 py-3 rounded-xl text-xs shadow">Submit Exam</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CBT Question Palette Sidebar -->
+                    <div class="w-full md:w-[380px] bg-white rounded-3xl shadow-2xl p-6 border flex flex-col justify-between">
+                        <div>
+                            <h4 class="font-black text-sm text-blue-950 uppercase tracking-wider mb-4 border-b pb-2">Question Palette</h4>
+                            <div class="grid grid-cols-5 gap-2 mb-6">
+                                ${exam.questions.map((item, idx) => {
+                                    let statusBg = 'bg-slate-100 text-slate-700 border-slate-300';
+                                    const st = state.questionStatus[idx];
+                                    if (st === 'answered') statusBg = 'bg-green-600 text-white border-green-700';
+                                    else if (st === 'marked') statusBg = 'bg-amber-500 text-white border-amber-600';
+                                    else if (idx === qIndex) statusBg = 'bg-blue-900 text-white border-blue-950 ring-2 ring-blue-400';
+
+                                    return `
+                                        <button onclick="jumpToQuestion(${idx})" class="h-8 rounded-xl font-black text-xs border flex items-center justify-center transition shadow-sm ${statusBg}">${idx + 1}</button>
+                                    `;
+                                }).join('')}
+                            </div>
+                            <div class="space-y-2 text-xs font-semibold text-slate-600 border-t pt-4">
+                                <div class="flex items-center gap-2"><span class="w-4 h-4 rounded-full bg-green-600 inline-block"></span><span> Answered</span></div>
+                                <div class="flex items-center gap-2"><span class="w-4 h-4 rounded-full bg-amber-500 inline-block"></span><span> Marked for Review</span></div>
+                                <div class="flex items-center gap-2"><span class="w-4 h-4 rounded-full bg-slate-200 inline-block"></span><span> Not Answered</span></div>
+                            </div>
+                        </div>
+                        <button onclick="confirmSubmitExam()" class="w-full bg-green-700 hover:bg-green-800 text-white font-extrabold py-3.5 rounded-2xl shadow-xl text-xs mt-6">Final Exam Submit</button>
+                    </div>
+                </div>
+            `;
+
+            if (!state.activeExamInterval) {
+                let timeLeft = (exam.durationMinutes || 45) * 60;
+                state.activeExamInterval = setInterval(() => {
+                    timeLeft--;
+                    let hrs = Math.floor(timeLeft / 3600).toString().padStart(2, '0');
+                    let mins = Math.floor((timeLeft % 3600) / 60).toString().padStart(2, '0');
+                    let secs = (timeLeft % 60).toString().padStart(2, '0');
+                    const tEl = document.getElementById('exam-timer');
+                    if (tEl) tEl.innerText = `${hrs}:${mins}:${secs} remaining`;
+                    if (timeLeft <= 0) { clearInterval(state.activeExamInterval); submitActiveExam(); }
+                }, 1000);
+            }
+        }
+
+        function recordMCQAnswer(qId, optIdx, qIndex) {
+            state.studentAnswers[qId] = optIdx;
+            state.questionStatus[qIndex] = 'answered';
+            renderCBTExamInterface();
+        }
+
+        function recordDescriptiveAnswer(qId, val) {
+            state.studentAnswers[qId] = val;
+            const qIndex = state.currentAttemptExam.questions.findIndex(q => q.id === qId);
+            if (val.trim().length > 0) {
+                state.questionStatus[qIndex] = 'answered';
+            } else {
+                state.questionStatus[qIndex] = 'unanswered';
+            }
+        }
+
+        function clearResponse(qId, qIndex) {
+            delete state.studentAnswers[qId];
+            state.questionStatus[qIndex] = 'unanswered';
+            renderCBTExamInterface();
+        }
+
+        function nextQuestion() {
+            if (state.currentQuestionIndex < state.currentAttemptExam.questions.length - 1) {
+                state.currentQuestionIndex++;
+                renderCBTExamInterface();
+            }
+        }
+
+        function prevQuestion() {
+            if (state.currentQuestionIndex > 0) {
+                state.currentQuestionIndex--;
+                renderCBTExamInterface();
+            }
+        }
+
+        function jumpToQuestion(idx) {
+            state.currentQuestionIndex = idx;
+            renderCBTExamInterface();
+        }
+
+        function markForReview(idx) {
+            state.questionStatus[idx] = 'marked';
+            if (idx < state.currentAttemptExam.questions.length - 1) {
+                state.currentQuestionIndex++;
+            }
+            renderCBTExamInterface();
+        }
+
+        function setupAntiCheat() {
+            state.warningCount = 0;
+            window.onblur = function() {
+                state.warningCount++;
+                if (state.warningCount >= 2) {
+                    alert('Max warnings reached due to security violations. Your account has been locked and exam is auto-submitting!');
+                    if (state.currentUser) {
+                        state.currentUser.status = 'locked';
+                        const u = state.users.find(usr => usr.username === state.currentUser.username);
+                        if (u) u.status = 'locked';
+                        localStorage.removeItem('cps_active_session_' + state.currentUser.username);
+                        saveState();
+                    }
+                    submitActiveExam();
+                } else {
+                    document.getElementById('security-warning-modal').classList.remove('hidden');
+                    document.getElementById('warning-text').innerText = `Warning ${state.warningCount}/2: Leaving exam window or switching tabs is strictly prohibited!`;
+                }
+            };
+        }
+
+        function dismissWarning() { document.getElementById('security-warning-modal').classList.add('hidden'); }
+
+        function confirmSubmitExam() {
+            if (confirm('Are you sure you want to finish and submit your final exam?')) {
+                submitActiveExam();
+            }
+        }
+
+        function submitActiveExam() {
+            if (state.activeExamInterval) { clearInterval(state.activeExamInterval); state.activeExamInterval = null; }
+            window.onblur = null;
+
+            const exam = state.currentAttemptExam;
+            let score = 0;
+            let totalMCQ = 0;
+            let descriptiveAnswered = 0;
+
+            if (exam && exam.questions) {
+                exam.questions.forEach(q => {
+                    if (q.type === 'mcq') {
+                        totalMCQ++;
+                        if (state.studentAnswers[q.id] === q.correct) score++;
+                    } else if (q.type === 'descriptive') {
+                        if (state.studentAnswers[q.id] && state.studentAnswers[q.id].trim().length > 0) {
+                            descriptiveAnswered++;
+                        }
+                    }
+                });
+            }
+            const scoreStr = totalMCQ > 0 ? `${score}/${totalMCQ} MCQ Correct` : `${descriptiveAnswered} Descriptive Answered`;
+
+            state.submissions.push({
+                id: Date.now(),
+                name: state.currentUser.name,
+                class: state.currentUser.class,
+                subject: exam.subject || exam.name,
+                examId: exam.id,
+                score: scoreStr,
+                time: new Date().toLocaleString(),
+                answers: { ...state.studentAnswers },
+                gradedMarks: {}
+            });
+            saveState();
+            alert(`Exam submitted successfully! Score: ${scoreStr}`);
+            render();
+        }
+
+        function toggleExamStatus(id) {
+            const ex = state.exams.find(e => e.id === id);
+            if (ex) {
+                const newStatus = ex.status === 'LIVE' ? 'OFFLINE' : 'LIVE';
+                state.exams.forEach(item => {
+                    if (item.subjectId === ex.subjectId || item.subject === ex.subject) {
+                        item.status = newStatus;
+                    }
+                });
+                saveState();
+                render();
+            }
+        }
+
+        function purgeClassStudents() {
+            const cls = document.getElementById('manage-class-target').value;
+            if (confirm(`Are you sure you want to purge all students in ${cls}?`)) {
+                const studentsToPurge = state.users.filter(u => u.role === 'Student' && u.class === cls);
+                studentsToPurge.forEach(s => localStorage.removeItem('cps_active_session_' + s.username));
+                state.users = state.users.filter(u => u.role !== 'Student' || u.class !== cls);
+                saveState();
+                render();
+                alert(`All students in ${cls} purged successfully.`);
+            }
+        }
+
+        function openAddUserModal() {
+            const name = prompt('Enter Student Name:');
+            const uname = prompt('Enter Username/ID:');
+            const pwd = prompt('Enter Password:');
+            if (!pwd) {
+                alert('Password is required.'); 
+                return; 
+            }
+            
+            const cls = prompt('Enter Class & Section (e.g., Class 9th - Section A):');
+            if (name && uname && cls) {
+                state.users.push({ id: Date.now(), role: 'Student', class: cls, name: name.toUpperCase(), username: uname, password: pwd, roll: '99', status: 'approved' });
+                saveState(); render();
+                alert('Student added successfully!');
+            }
+        }
+
+        function exportCSV() {
+            let csv = 'Name,Class & Section,Subject,Score,Time\n';
+            state.submissions.forEach(s => csv += `"${s.name}","${s.class}","${s.subject}","${s.score}","${s.time}"\n`);
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = 'cps_submissions.csv'; a.click();
+        }
+
+        function runPreview() {
+            const subId = document.getElementById('preview-sub-target').value;
+            const ex = state.exams.find(e => e.id === subId);
+            const box = document.getElementById('preview-box');
+            
+            let previewQuestions = JSON.parse(JSON.stringify(ex.questions || []));
+
+            document.getElementById('preview-title').innerText = `${ex.name} - ${ex.class || 'All'} Preview (Duration: ${ex.durationMinutes || 45} mins)`;
+            document.getElementById('preview-content').innerHTML = previewQuestions.length > 0 ? previewQuestions.map((q, i) => `
+                <div class="p-6 bg-slate-50 rounded-2xl border text-xs md:text-sm space-y-3">
+                    ${q.caseStudy ? `
+                        <div class="bg-amber-50 border border-amber-200 p-4 rounded-xl mb-3">
+                            <div class="font-black text-amber-900 text-xs uppercase mb-1">📖 Case Study Passage:</div>
+                            <div class="text-xs text-slate-800">${q.caseStudy}</div>
+                        </div>
+                    ` : ''}
+                    <div class="flex justify-between font-bold text-slate-500">
+                        <span>Q${i+1}. [${q.type ? q.type.toUpperCase() : 'MCQ'}]</span>
+                    </div>
+                    <div class="question-body font-bold text-slate-900">${q.q}</div>
+                    ${q.type === 'descriptive' ? '<p class="text-xs italic text-blue-700">[Descriptive Answer Textarea Box for Students]</p>' : `<ul class="space-y-1 pl-2">${q.options.map((o, oi) => `<li class="${oi === q.correct ? 'text-green-700 font-bold bg-green-50 p-2 rounded-xl' : 'text-slate-700 p-2'}">• ${o}</li>`).join('')}</ul>`}
+                </div>
+            `).join('') : '<p class="text-xs text-slate-500">No questions uploaded for this exam yet.</p>';
+            box.classList.remove('hidden');
+        }
+
+        // ==================== DOCUMENT & MULTI-CLASS SIMULTANEOUS PARSER ====================
+        function parseTextToQuestions(textOrHtml, isHtml = false) {
+            const questions = [];
+            let qId = 1;
+            let currentCaseStudy = '';
+            let targetRangeStart = null;
+            let targetRangeEnd = null;
+
+            const processElementText = (rawText, rawHtml) => {
+                const text = rawText.trim();
+                if (!text) return;
+
+                const caseStudyMatch = /case\s*study|read\s*the\s*following|passage/i.test(text);
+                const rangeMatch = text.match(/questions?\s*(\d+)\s*(?:to|-)\s*(\d+)/i);
+
+                const isQuestion = /^(Q\.?\s*\d+|\d+[\.\)]\s*)/i.test(text);
+                const isOption = /^([A-Da-d][\.\)]|\([A-Da-d]\))\s*/.test(text);
+
+                if (caseStudyMatch && !isQuestion && !isOption) {
+                    currentCaseStudy = rawHtml || text;
+                    targetRangeStart = null;
+                    targetRangeEnd = null;
+                    if (rangeMatch) {
+                        targetRangeStart = parseInt(rangeMatch[1]);
+                        targetRangeEnd = parseInt(rangeMatch[2]);
+                    }
+                    return;
+                }
+
+                if (isQuestion) {
+                    const qNumMatch = text.match(/^(?:Q\.?\s*)?(\d+)/i);
+                    const qNum = qNumMatch ? parseInt(qNumMatch[1]) : qId;
+
+                    let activeCS = currentCaseStudy;
+                    if (targetRangeStart !== null && targetRangeEnd !== null) {
+                        if (qNum < targetRangeStart || qNum > targetRangeEnd) {
+                            activeCS = '';
+                        }
+                    }
+
+                    questions.push({
+                        id: qId++,
+                        type: 'descriptive',
+                        q: rawHtml || text,
+                        options: [],
+                        correct: 0,
+                        caseStudy: activeCS || undefined
+                    });
+                } else if (isOption && questions.length > 0) {
+                    const lastQ = questions[questions.length - 1];
+                    if (lastQ.type === 'descriptive') {
+                        lastQ.type = 'mcq';
+                        lastQ.options = [];
+                    }
+                    lastQ.options.push(rawHtml || text);
+                } else if (questions.length > 0) {
+                    const lastQ = questions[questions.length - 1];
+                    if (lastQ.options.length > 0 && !isOption) {
+                        lastQ.q += '<br>' + (rawHtml || text);
+                    } else if (currentCaseStudy && !lastQ) {
+                        currentCaseStudy += '<br>' + (rawHtml || text);
+                    } else if (lastQ) {
+                        lastQ.q += '<br>' + (rawHtml || text);
+                    }
+                } else if (currentCaseStudy) {
+                    currentCaseStudy += '<br>' + (rawHtml || text);
+                }
+            };
+
+            if (isHtml) {
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = textOrHtml;
+                Array.from(tempDiv.children).forEach(p => {
+                    processElementText(p.textContent, p.innerHTML);
+                });
+            } else {
+                const lines = textOrHtml.split('\n');
+                lines.forEach(line => {
+                    processElementText(line, line);
+                });
+            }
+
+            if (questions.length === 0) {
+                questions.push({
+                    id: 1,
+                    type: 'descriptive',
+                    q: textOrHtml.substring(0, 400),
+                    options: [],
+                    correctText: ''
+                });
+            }
+
+            return questions;
+        }
+
+        async function uploadAndParseMultiClassQP() {
+            const subjectId = document.getElementById('qp-subject-target').value;
+            const subjectName = document.getElementById('qp-subject-target').options[document.getElementById('qp-subject-target').selectedIndex].text;
+            const duration = parseInt(document.getElementById('qp-duration-field').value) || 45;
+            const startTime = document.getElementById('qp-start-time-field').value;
+            const endTime = document.getElementById('qp-end-time-field').value;
+            
+            const checkedClasses = Array.from(document.querySelectorAll('input[name="target-class-chk"]:checked')).map(cb => cb.value);
+            if (checkedClasses.length === 0) {
+                alert('Please select at least one target class for this examination paper.');
+                return;
+            }
+
+            const fileInput = document.getElementById('qp-file-field');
+            if (fileInput.files.length === 0) {
+                alert('Please select a question paper file to upload.');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const fileName = file.name.toLowerCase();
+
+            try {
+                let parsedQuestions = [];
+
+                if (fileName.endsWith('.json')) {
+                    const text = await file.text();
+                    parsedQuestions = JSON.parse(text);
+                } else if (fileName.endsWith('.txt')) {
+                    const text = await file.text();
+                    parsedQuestions = parseTextToQuestions(text, false);
+                } else if (fileName.endsWith('.docx') || fileName.endsWith('.doc')) {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const result = await mammoth.convertToHtml({ arrayBuffer: arrayBuffer }, {
+                        convertImage: mammoth.images.imgElement(function(image) {
+                            return image.read("base64").then(function(imageBuffer) {
+                                return {
+                                    src: "data:" + image.contentType + ";base64," + imageBuffer
+                                };
+                            });
+                        })
+                    });
+                    parsedQuestions = parseTextToQuestions(result.value, true);
+                } else if (fileName.endsWith('.pdf')) {
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                    const arrayBuffer = await file.arrayBuffer();
+                    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+                    const pdfDoc = await loadingTask.promise;
+                    let fullText = '';
+                    for (let i = 1; i <= pdfDoc.numPages; i++) {
+                        const page = await pdfDoc.getPage(i);
+                        const textContent = await page.getTextContent();
+                        fullText += textContent.items.map(item => item.str).join(' ') + '\n';
+                    }
+                    parsedQuestions = parseTextToQuestions(fullText, false);
+                } else {
+                    alert('Unsupported file format. Please upload .json, .txt, .docx, or .pdf files.');
+                    return;
+                }
+
+                checkedClasses.forEach(cls => {
+                    const examId = `${subjectId}_${cls.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+                    let existingExamIndex = state.exams.findIndex(e => e.id === examId || (e.subjectId === subjectId && e.class === cls));
+
+                    if (existingExamIndex >= 0) {
+                        state.exams[existingExamIndex].questions = parsedQuestions;
+                        state.exams[existingExamIndex].durationMinutes = duration;
+                        state.exams[existingExamIndex].startTime = startTime;
+                        state.exams[existingExamIndex].endTime = endTime;
+                        state.exams[existingExamIndex].name = `${subjectName} - ${cls}`;
+                    } else {
+                        state.exams.push({
+                            id: examId,
+                            subjectId: subjectId,
+                            name: `${subjectName} - ${cls}`,
+                            subject: subjectName,
+                            class: cls,
+                            status: 'OFFLINE',
+                            startTime: startTime,
+                            endTime: endTime,
+                            durationMinutes: duration,
+                            questions: parsedQuestions
+                        });
+                    }
+                });
+                saveState();
+                render();
+                alert(`Question paper successfully uploaded and assigned simultaneously to ${checkedClasses.length} classes![cite: 1]`);
+            } catch (err) {
+                console.error(err);
+                alert('Error parsing question paper file. Please check file format.');
+            }
+        }
+    </script>
+</body>
+</html>
