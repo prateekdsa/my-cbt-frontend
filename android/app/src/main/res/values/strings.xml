@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">CPS EduConnect</string>
+    <string name="title_activity_main">CPS EduConnect</string>
+    <string name="package_name">com.cps.educonnect</string>
+    <string name="custom_url_scheme">com.cps.educonnect</string>
+</resources>
