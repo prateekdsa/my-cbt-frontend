@@ -66,6 +66,7 @@
 
     <!-- Application Script -->
     <script>
+        const VITE_API = import.meta.env.VITE_API_URL || "https://my-cbt-backend-bl1b.onrender.com";
         let state = {
             currentUser: null,
             activeTab: 'users',
@@ -216,7 +217,7 @@
 
             header.classList.remove('hidden');
 
-            // Handle Student 30-Second Countdown Screen after login[cite: 1]
+            // Handle Student 30-Second Countdown Screen after login
             if (state.currentUser.role === 'Student' && state.showLoginCountdown) {
                 userInfo.innerHTML = `
                     <div class="hidden md:block text-right">
@@ -404,6 +405,7 @@
 
             if (!usernameInput) { alert('Please enter User ID or username.'); return; }
 
+            // Safely find user by username first
             let foundUser = state.users.find(u => u.username.toLowerCase() === usernameInput);
 
             if (!foundUser) {
@@ -421,6 +423,7 @@
                 return;
             }
 
+            // Enforce single-device / single-tab login restriction for students
             if (foundUser.role === 'Student') {
                 const sessionKey = 'cps_active_session_' + foundUser.username;
                 const existingSession = localStorage.getItem(sessionKey);
@@ -444,6 +447,7 @@
                 );
                 if (classExams.length === 0) {
                     alert('No exam is there for your class.');
+                    // Clean up session if login aborted
                     localStorage.removeItem(sessionKey);
                     return;
                 }
@@ -575,8 +579,8 @@
                                             <option value="Class 9th - Section B">Class 9th - Section B</option>
                                             <option value="Class 10th - Section A">Class 10th - Section A</option>
                                             <option value="Class 10th - Section B">Class 10th - Section B</option>
-                                            <option value="Class 11th - Science A">Class 11th - Science A</option>
-                                            <option value="Class 11th - Science B">Class 11th - Science B</option>
+                                            <option value="Class 11th - Science A">Class 11th - Section A</option>
+                                            <option value="Class 11th - Science B">Class 11th - Section B</option>
                                             <option value="Class 12th - Science A">Class 12th - Section A</option>
                                             <option value="Class 12th - Science B">Class 12th - Section B</option>
                                         </select>
@@ -907,8 +911,8 @@
                             <option value="Class 10th - Section B">Class 10th - Section B</option>
                             <option value="Class 11th - Science A">Class 11th - Science A</option>
                             <option value="Class 11th - Science B">Class 11th - Science B</option>
-                            <option value="Class 12th - Science A">Class 12th - Section A</option>
-                            <option value="Class 12th - Science B">Class 12th - Section B</option>
+                            <option value="Class 12th - Science A">Class 12th - Science A</option>
+                            <option value="Class 12th - Science B">Class 12th - Science B</option>
                         </select>
                     </div>
                     <div>
@@ -1744,6 +1748,7 @@
                     return;
                 }
 
+                // Simultaneously create or update exam entries for all selected classes with start time and end time
                 checkedClasses.forEach(cls => {
                     const examId = `${subjectId}_${cls.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
                     let existingExamIndex = state.exams.findIndex(e => e.id === examId || (e.subjectId === subjectId && e.class === cls));
@@ -1769,14 +1774,18 @@
                         });
                     }
                 });
+
                 saveState();
+                alert(`Successfully uploaded and assigned ${subjectName} question paper (${parsedQuestions.length} questions) to ${checkedClasses.length} classes simultaneously!`);
                 render();
-                alert(`Question paper successfully uploaded and assigned simultaneously to ${checkedClasses.length} classes![cite: 1]`);
+
             } catch (err) {
                 console.error(err);
-                alert('Error parsing question paper file. Please check file format.');
+                alert('Error parsing uploaded file: ' + err.message);
             }
         }
+
+        render();
     </script>
 </body>
 </html>
