@@ -67,7 +67,14 @@
     <!-- Application Script -->
     <script type="module">
 
-        const VITE_API = import.meta.env.VITE_API_URL ;
+        let VITE_API = "https://my-cbt-backend-bl1b.onrender.com";
+        try {
+            if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) {
+                VITE_API = import.meta.env.VITE_API_URL;
+            }
+        } catch (e) {
+            // Fallback for direct browser execution without bundler
+        }
 
         const VITE_API_FALLBACK = "https://my-cbt-backend-bl1b.onrender.com";
     
