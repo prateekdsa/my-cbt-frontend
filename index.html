@@ -1140,39 +1140,64 @@
             }
         }
 
-        function submitRegistration() {
-            const name = document.getElementById('reg-name').value.trim();
-            const username = document.getElementById('reg-username').value.trim().toLowerCase();
-            const password = document.getElementById('reg-password').value.trim();
-            const role = document.getElementById('reg-role').value;
-            const subject = role === 'Teacher' ? document.getElementById('reg-subject').value : 'All';
-            const cls = role === 'Student' ? document.getElementById('reg-class').value : 'N/A';
-            const roll = role === 'Student' ? document.getElementById('reg-roll').value.trim() || '1' : undefined;
+        
+            }async function submitRegistration() {
+    const name = document.getElementById('reg-name').value.trim();
+    const username = document.getElementById('reg-username').value.trim().toLowerCase();
+    const password = document.getElementById('reg-password').value.trim();
+    const role = document.getElementById('reg-role').value;
+    const subject = role === 'Teacher' ? document.getElementById('reg-subject').value : 'All';
+    const cls = role === 'Student' ? document.getElementById('reg-class').value : 'N/A';
+    const roll = role === 'Student' ? document.getElementById('reg-roll').value.trim() || '1' : null;
+    const status = role === 'Teacher' ? 'pending' : 'approved';
 
-            if (!name || !username || !password) { alert('Please fill all required fields.'); return; }
-            if (state.users.some(u => u.username.toLowerCase() === username)) { alert('Username already exists.'); return; }
+    if (!name || !username || !password) {
+        alert('Please fill all required fields.');
+        return;
+    }
 
-            const newUser = {
-                id: Date.now(),
-                role: role,
-                class: cls,
-                subject: subject,
-                name: name.toUpperCase(),
-                username: username,
-                password: password,
-                roll: roll,
-                status: role === 'Teacher' ? 'pending' : 'approved'
-            };
+    // Check if the username already exists in Supabase
+    const { data: existingUser, error: checkError } = await _supabase
+        .from('users')
+        .select('username')
+        .eq('username', username)
+        .maybeSingle();
 
-            state.users.push(newUser);
-            saveState();
-            closeModal();
-            if (role === 'Teacher') {
-                alert('Teacher registration submitted successfully! Pending Administrator authorization.');
-            } else {
-                alert('Registration successful! You can now log in.');
-            }
-        }
+    if (existingUser) {
+        alert('Username already exists.');
+        return;
+    }
+
+    // Send data to Supabase
+    const { error } = await _supabase
+        .from('users')
+        .insert([{ 
+            name: name.toUpperCase(), 
+            username: username, 
+            password: password, 
+            role: role, 
+            subject: subject, 
+            class: cls, 
+            roll_number: roll,
+            status: status
+        }]);
+
+    if (error) {
+        console.error('Supabase registration error:', error.message);
+        alert('Registration failed: ' + error.message);
+        return;
+    }
+
+    if (typeof closeModal === 'function') {
+        closeModal();
+    }
+
+    if (role === 'Teacher') {
+        alert('Teacher registration submitted successfully! Pending Administrator authorization.');
+    } else {
+        alert('Registration successful! You can now log in.');
+    }
+}
 
         function approveTeacher(username) {
             const user = state.users.find(u => u.username === username);
