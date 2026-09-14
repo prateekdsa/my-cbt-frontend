@@ -4,6 +4,7 @@
     "tailwindcss": "^4.3.3"
   },
   "scripts": {
-    "build": "chmod +x node_modules/.bin/tailwindcss && npx @tailwindcss/cli -i ./src/input.css -o ./dist/output.css"
+  "build": "node node_modules/@tailwindcss/cli/dist/index.mjs -i ./src/input.css -o ./dist/output.css"
+}
   }
 }
