@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>City Public School, Najibabad - Secure Examination Portal</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind CSS -->
+    <link rel="stylesheet" href="./dist/output.css">
     <!-- PDF.js and Mammoth CDNs for Document Parsing with Image/Figure Support -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
@@ -65,19 +65,8 @@
     </div>
 
     <!-- Application Script -->
-    <script type="module">
-
-        let VITE_API = "https://my-cbt-backend-bl1b.onrender.com";
-        try {
-            if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) {
-                VITE_API = import.meta.env.VITE_API_URL;
-            }
-        } catch (e) {
-            // Fallback for direct browser execution without bundler
-        }
-
-        const VITE_API_FALLBACK = "https://my-cbt-backend-bl1b.onrender.com";
-    
+    <script>
+        const VITE_API = "https://my-cbt-backend-bl1b.onrender.com";
         let state = {
             currentUser: null,
             activeTab: 'users',
@@ -922,8 +911,8 @@
                             <option value="Class 10th - Section B">Class 10th - Section B</option>
                             <option value="Class 11th - Science A">Class 11th - Science A</option>
                             <option value="Class 11th - Science B">Class 11th - Science B</option>
-                            <option value="Class 12th - Science A">Class 12th - Section A</option>
-                            <option value="Class 12th - Science B">Class 12th - Section B</option>
+                            <option value="Class 12th - Science A">Class 12th - Science A</option>
+                            <option value="Class 12th - Science B">Class 12th - Science B</option>
                         </select>
                     </div>
                     <div>
