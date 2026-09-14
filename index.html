@@ -9,6 +9,13 @@
     <!-- PDF.js and Mammoth CDNs for Document Parsing with Image/Figure Support -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = 'https://xpblznnqqwicaztzgamw.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInI5ccI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhwYmx6bm5xcXdpY2F6dHpnYW13Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMyNTM1MDR9._6_TA3hVMYITirfqORltzEGkcMGpp-EqU6YXMOtl_Bw';
+  const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+</script>
+    const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         body { font-family: 'Inter', sans-serif; user-select: none; }
