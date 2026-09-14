@@ -65,11 +65,11 @@
     </div>
 
     <!-- Application Script -->
-    <script>
+    <script type="module">
 
         const VITE_API = import.meta.env.VITE_API_URL ;
 
-        const VITE_API = "https://my-cbt-backend-bl1b.onrender.com";
+        const VITE_API_FALLBACK = "https://my-cbt-backend-bl1b.onrender.com";
     
         let state = {
             currentUser: null,
@@ -915,8 +915,8 @@
                             <option value="Class 10th - Section B">Class 10th - Section B</option>
                             <option value="Class 11th - Science A">Class 11th - Science A</option>
                             <option value="Class 11th - Science B">Class 11th - Science B</option>
-                            <option value="Class 12th - Science A">Class 12th - Science A</option>
-                            <option value="Class 12th - Science B">Class 12th - Science B</option>
+                            <option value="Class 12th - Science A">Class 12th - Section A</option>
+                            <option value="Class 12th - Science B">Class 12th - Section B</option>
                         </select>
                     </div>
                     <div>
